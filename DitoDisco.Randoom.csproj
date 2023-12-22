@@ -11,9 +11,8 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-
     <PackageId>DitoDisco.Randoom</PackageId>
+    <PackageTags>randoom;novelty</PackageTags>
     <Version>1.0.0-pre</Version>
     <Authors>Dit05</Authors>
     <Description>
@@ -22,6 +21,8 @@
       Currently only features one generator:
       - Rule30Random: Generates pseudorandom numbers using the Rule 30 elementary cellular automaton.
     </Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Dit05/DitoDisco.Randoom</PackageProjectUrl>
   </PropertyGroup>
 
 </Project>
