@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn> <!-- Missing XML comment for publicly visible type or member -->
+    <NoWarn>$(NoWarn);1573</NoWarn> <!-- Parameter has no matching param tag in the XML comment -->
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <PackageId>DitoDisco.Randoom</PackageId>
+    <Version>1.0.0-pre</Version>
+    <Authors>Dit05</Authors>
+    <Description>
+      Novelty (pseudo)random number generators.
+
+      Currently only features one generator:
+      - Rule30Random: Generates pseudorandom numbers using the Rule 30 elementary cellular automaton.
+    </Description>
+  </PropertyGroup>
+
+</Project>

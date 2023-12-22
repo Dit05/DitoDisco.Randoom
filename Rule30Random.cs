@@ -4,8 +4,11 @@ using System;
 namespace DitoDisco.Random {
 
     public class Rule30Random : System.Random {
-        // ours: 1461.5 ms
-        // System.Random: 71.2 ms :(
+        // System.Random: 71.2 ms
+        // ours: 1461.5 ms :(
+
+        const int DEFAULT_BIT_SPACING = 8;
+        const int DEFAULT_SIZE = 255;
 
 
         readonly int bufferWidth;
@@ -15,8 +18,6 @@ namespace DitoDisco.Random {
         bool[] currentBuffer;
         bool[] nextBuffer;
 
-
-        const int DEFAULT_BIT_SPACING = 8;
 
         readonly int bitSpacing;
         readonly int stateBitCapacity;
@@ -37,10 +38,10 @@ namespace DitoDisco.Random {
         /// <summary>
         /// Initializes a new Rule 30 pseudorandom number generator, with a state width of <paramref name="size"/> bits, and seeds it using <paramref name="seed"/>.
         /// </summary>
+        /// <param name="seed">Completely determines the sequence of randomness that will be generated. A seed of 0 results in 1 being used instead, since an empty state would just keep being empty and not generate anything.</param>
         /// <param name="size">Size of one state. This determines the value of <see cref="StateLength"/>. Must be positive. Using an even number is not recommended, because the cellular automaton is stable if the state is 010101... repeating.</param>
-        /// <param name="seed">Completely determines the sequence of randomness that will be generated. For technical reasons, a seed of 0 results in 1 being used instead.</param>
         /// <param name="bitSpacing">Interval of bits picked out of the cellular automaton state. Higher values make subsequent pseudorandom values less correlated, but also require more computation to advance the state.</param>
-        public Rule30Random(int size, ulong seed, int bitSpacing = DEFAULT_BIT_SPACING) {
+        public Rule30Random(ulong seed, int size = DEFAULT_SIZE, int bitSpacing = DEFAULT_BIT_SPACING) {
             if(size <= 0) throw new ArgumentOutOfRangeException(nameof(size), "Size must be positive.");
             if(bitSpacing <= 0) throw new ArgumentOutOfRangeException(nameof(bitSpacing), "Bit spacing must be positive.");
 
@@ -67,9 +68,9 @@ namespace DitoDisco.Random {
         }
 
         /// <summary>
-        /// Initializes a new instance and uses the current time as the seed.
+        /// Initializes a new instance with reasonable parameters and uses the current time as the seed.
         /// </summary>
-        public Rule30Random(int width) : this(width, (ulong)DateTime.Now.Ticks) { }
+        public Rule30Random() : this((ulong)DateTime.Now.Ticks) { }
 
 
 
@@ -84,24 +85,16 @@ namespace DitoDisco.Random {
         private Span<bool> GetStateSpan() => currentBuffer.AsSpan().Slice(1, stateLength);
 
 
-        private void GiveUp() {
-#if DEBUG
-            throw new Exception("Couldn't make a random number even after very many attempts.");
-#endif
-        }
-
-
         // Internal state manipulation
 
         private void SwapBuffers() {
-            var temp = currentBuffer;
-            currentBuffer = nextBuffer;
-            nextBuffer = temp;
+            (currentBuffer, nextBuffer) = (nextBuffer, currentBuffer);
         }
 
 
         private void AdvanceState() {
-            // Wrapping around: The 0th element is actually the last-in-bounds, and the last element is the first-in-bounds
+            // Pre-wrapping to avoid boundary checks in the loop:
+            // The 0th element is actually the last-in-bounds, and the last element is the first-in-bounds
             currentBuffer[0] = currentBuffer[bufferWidth - 2];
             currentBuffer[bufferWidth - 1] = currentBuffer[1];
 
@@ -278,8 +271,12 @@ namespace DitoDisco.Random {
                 if(possibleValue < maxValue) return possibleValue;
             }
 
-            GiveUp();
-            return 0;
+#if DEBUG
+            throw new Exception("Couldn't make a random number even after very many attempts.");
+#else
+            // Give up and just return the value in the center
+            return maxValue / 2;
+#endif
         }
 
         /// <summary>
@@ -366,16 +363,7 @@ namespace DitoDisco.Random {
 
 
         /// <summary>
-        /// Fills the provided byte array with random values.
-        /// </summary>
-        public override void NextBytes(byte[] buffer) {
-            for(int i = 0; i < buffer.Length; i++) {
-                buffer[i] = NextByte();
-            }
-        }
-
-        /// <summary>
-        /// Fills the provided span with random values.
+        /// Fills the provided span with pseudorandom values.
         /// </summary>
         public override void NextBytes(Span<byte> buffer) {
             for(int i = 0; i < buffer.Length; i++) {
