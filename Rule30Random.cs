@@ -77,7 +77,7 @@ namespace DitoDisco.Randoom {
         // Helpers
 
         private static int CeilingIntDivide(int dividend, int divisor) {
-            int remainder = Math.DivRem(dividend, divisor, out int result);
+            int result = Math.DivRem(dividend, divisor, out int remainder);
             return (remainder == 0) ? result : result + 1;
         }
 
