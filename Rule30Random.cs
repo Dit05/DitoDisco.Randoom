@@ -255,7 +255,7 @@ namespace DitoDisco.Randoom {
         /// </summary>
         /// <param name="maxValue">Exclusive upper bound of the value.</param>
         public override int Next(int maxValue) {
-            return (int)NextUInt64WithBits(sizeof(int) * 8 - 1);
+            return (int)NextUInt64((ulong)maxValue);
         }
 
         /// <summary>
@@ -348,7 +348,8 @@ namespace DitoDisco.Randoom {
         /// </summary>
         /// <param name="maxValue">Exclusive upper bound of the value.</param>
         public ulong NextUInt64(ulong maxValue) {
-            if(maxValue <= 0) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must be positive.");
+            if(maxValue < 0) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must be at least 0.");
+            if(maxValue == 0) return 0;
 
             //int bitCount = Math.ILogB(maxValue) + 1; // This is not in .NET Standard 2.1
             int bitCount = 0;
