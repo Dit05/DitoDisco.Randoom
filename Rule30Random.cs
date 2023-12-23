@@ -229,11 +229,6 @@ namespace DitoDisco.Randoom {
         /// </summary>
         public override double NextDouble() => NextUInt64(ulong.MaxValue) / (float)ulong.MaxValue;
 
-        /// <summary>
-        /// Returns a pseudorandom single-precision number that is at least 0 and less than 1.
-        /// </summary>
-        public override float NextSingle() => NextUInt64(uint.MaxValue) / (float)uint.MaxValue;
-
 
         /// <summary>
         /// Returns a pseudorandom 64-bit unsigned integer with the first <paramref name="bitCount"/> bits randomized.
@@ -251,78 +246,9 @@ namespace DitoDisco.Randoom {
 
 
         /// <summary>
-        /// Returns a pseudorandom <see cref="UInt64"/> between 0 and <see cref="UInt64.MaxValue"/>, inclusive. (so basically, any value)
-        /// </summary>
-        public ulong NextUInt64() => NextUInt64WithBits(sizeof(uint) * 8);
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="UInt64"/> that is at least 0 and smaller than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public ulong NextUInt64(ulong maxValue) {
-            if(maxValue <= 0) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must be positive.");
-
-            int bitCount = Math.ILogB(maxValue) + 1;
-
-            int safetyCounter = 8192;
-            while(safetyCounter-- > 0) {
-                ulong possibleValue = NextUInt64WithBits(bitCount);
-
-                if(possibleValue < maxValue) return possibleValue;
-            }
-
-#if DEBUG
-            throw new Exception("Couldn't make a random number even after very many attempts.");
-#else
-            // Give up and just return the value in the center
-            return maxValue / 2;
-#endif
-        }
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="UInt64"/> that is at least <paramref name="minValue"/> but less than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="minValue">Inclusive lower bound of the value.</param>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public ulong NextUInt64(ulong minValue, ulong maxValue) {
-            if(maxValue < minValue) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must not be smaller than the minimum value.");
-            if(maxValue == minValue) return minValue;
-
-            return minValue + NextUInt64(maxValue - minValue);
-        }
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int64"/> between 0 and <see cref="Int64.MaxValue"/>, inclusive.
-        /// </summary>
-        public override long NextInt64() => (long)NextUInt64WithBits(sizeof(ulong) * 8 - 1);
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int64"/> that is at least 0 and smaller than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public override long NextInt64(long maxValue) => (long)NextUInt64((ulong)maxValue);
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int64"/> that is at least <paramref name="minValue"/> but less than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="minValue">Inclusive lower bound of the value.</param>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public override long NextInt64(long minValue, long maxValue) {
-            if(maxValue < minValue) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must not be smaller than the minimum value.");
-            if(maxValue == minValue) return minValue;
-
-            return minValue + NextInt64(maxValue - minValue);
-        }
-
-
-        /// <summary>
         /// Returns a pseudorandom <see cref="Int32"/> between 0 and <see cref="Int32.MaxValue"/>, inclusive.
         /// </summary>
         public override int Next() => (int)NextUInt64WithBits(sizeof(int) * 8 - 1);
-
 
         /// <summary>
         /// Returns a pseudorandom integer that is at least 0 and less than <paramref name="maxValue"/>.
@@ -346,6 +272,18 @@ namespace DitoDisco.Randoom {
 
 
         /// <summary>
+        /// Fills the provided span with pseudorandom values.
+        /// </summary>
+        public override void NextBytes(Span<byte> buffer) {
+            for(int i = 0; i < buffer.Length; i++) {
+                buffer[i] = NextByte();
+            }
+        }
+
+
+        // Other random generation methods that should probably go into a base class.
+
+        /// <summary>
         /// Returns a pseudorandom byte.
         /// </summary>
         public byte NextByte() {
@@ -361,14 +299,79 @@ namespace DitoDisco.Randoom {
             );
         }
 
+        /// <summary>
+        /// Returns a pseudorandom <see cref="UInt64"/> that is at least <paramref name="minValue"/> but less than <paramref name="maxValue"/>.
+        /// </summary>
+        /// <param name="minValue">Inclusive lower bound of the value.</param>
+        /// <param name="maxValue">Exclusive upper bound of the value.</param>
+        public ulong NextUInt64(ulong minValue, ulong maxValue) {
+            if(maxValue < minValue) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must not be smaller than the minimum value.");
+            if(maxValue == minValue) return minValue;
+
+            return minValue + NextUInt64(maxValue - minValue);
+        }
+
 
         /// <summary>
-        /// Fills the provided span with pseudorandom values.
+        /// Returns a pseudorandom <see cref="Int64"/> between 0 and <see cref="Int64.MaxValue"/>, inclusive.
         /// </summary>
-        public override void NextBytes(Span<byte> buffer) {
-            for(int i = 0; i < buffer.Length; i++) {
-                buffer[i] = NextByte();
+        public long NextInt64() => (long)NextUInt64WithBits(sizeof(ulong) * 8 - 1);
+
+
+        /// <summary>
+        /// Returns a pseudorandom <see cref="Int64"/> that is at least 0 and smaller than <paramref name="maxValue"/>.
+        /// </summary>
+        /// <param name="maxValue">Exclusive upper bound of the value.</param>
+        public long NextInt64(long maxValue) => (long)NextUInt64((ulong)maxValue);
+
+
+        /// <summary>
+        /// Returns a pseudorandom <see cref="Int64"/> that is at least <paramref name="minValue"/> but less than <paramref name="maxValue"/>.
+        /// </summary>
+        /// <param name="minValue">Inclusive lower bound of the value.</param>
+        /// <param name="maxValue">Exclusive upper bound of the value.</param>
+        public long NextInt64(long minValue, long maxValue) {
+            if(maxValue < minValue) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must not be smaller than the minimum value.");
+            if(maxValue == minValue) return minValue;
+
+            return minValue + NextInt64(maxValue - minValue);
+        }
+
+
+        /// <summary>
+        /// Returns a pseudorandom <see cref="UInt64"/> between 0 and <see cref="UInt64.MaxValue"/>, inclusive. (so basically, any value)
+        /// </summary>
+        public ulong NextUInt64() => NextUInt64WithBits(sizeof(uint) * 8);
+
+        /// <summary>
+        /// Returns a pseudorandom <see cref="UInt64"/> that is at least 0 and smaller than <paramref name="maxValue"/>.
+        /// </summary>
+        /// <param name="maxValue">Exclusive upper bound of the value.</param>
+        public ulong NextUInt64(ulong maxValue) {
+            if(maxValue <= 0) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must be positive.");
+
+            //int bitCount = Math.ILogB(maxValue) + 1; // This is not in .NET Standard 2.1
+            int bitCount = 0;
+            ulong maxValueCopy = maxValue;
+
+            while(maxValueCopy > 0) {
+                maxValueCopy >>= 1;
+                bitCount++;
             }
+
+            int safetyCounter = 8192;
+            while(safetyCounter-- > 0) {
+                ulong possibleValue = NextUInt64WithBits(bitCount);
+
+                if(possibleValue < maxValue) return possibleValue;
+            }
+
+#if DEBUG
+            throw new Exception("Couldn't make a random number even after very many attempts.");
+#else
+            // Give up and just return the value in the center
+            return maxValue / 2;
+#endif
         }
 
     }
