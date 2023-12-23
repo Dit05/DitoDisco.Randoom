@@ -13,7 +13,7 @@
   <PropertyGroup>
     <PackageId>DitoDisco.Randoom</PackageId>
     <PackageTags>randoom;novelty</PackageTags>
-    <Version>1.0.0-pre</Version>
+    <Version>1.0.0-pre1</Version>
     <Authors>Dit05</Authors>
     <Description>
       Novelty (pseudo)random number generators.
