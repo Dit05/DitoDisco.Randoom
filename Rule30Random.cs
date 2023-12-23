@@ -1,7 +1,7 @@
 using System;
 
 
-namespace DitoDisco.Random {
+namespace DitoDisco.Randoom {
 
     public class Rule30Random : System.Random {
         // System.Random: 71.2 ms
