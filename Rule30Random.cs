@@ -248,7 +248,7 @@ namespace DitoDisco.Randoom {
         /// <summary>
         /// Returns a pseudorandom <see cref="Int32"/> between 0 and <see cref="Int32.MaxValue"/>, inclusive.
         /// </summary>
-        public override int Next() => (int)NextUInt64WithBits(sizeof(int) * 8 - 1);
+        public override int Next() => Next(int.MaxValue);
 
         /// <summary>
         /// Returns a pseudorandom integer that is at least 0 and less than <paramref name="maxValue"/>.
@@ -341,7 +341,7 @@ namespace DitoDisco.Randoom {
         /// <summary>
         /// Returns a pseudorandom <see cref="UInt64"/> between 0 and <see cref="UInt64.MaxValue"/>, inclusive. (so basically, any value)
         /// </summary>
-        public ulong NextUInt64() => NextUInt64WithBits(sizeof(uint) * 8);
+        public ulong NextUInt64() => NextUInt64WithBits(sizeof(ulong) * 8);
 
         /// <summary>
         /// Returns a pseudorandom <see cref="UInt64"/> that is at least 0 and smaller than <paramref name="maxValue"/>.
