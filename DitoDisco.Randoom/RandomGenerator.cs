@@ -12,6 +12,13 @@ namespace DitoDisco.Randoom {
         public Random Random => _random;
 
 
+        /// <summary>
+        /// Creates a new <see cref="System.Random"/> and uses that.
+        /// </summary>
+        public RandomGenerator() {
+            _random = new System.Random();
+        }
+
         public RandomGenerator(Random random) {
             _random = random;
         }
