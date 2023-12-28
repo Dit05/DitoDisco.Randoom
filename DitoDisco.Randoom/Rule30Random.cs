@@ -3,7 +3,10 @@ using System;
 
 namespace DitoDisco.Randoom {
 
-    public class Rule30Random : System.Random {
+    /// <summary>
+    /// Uses the Rule 30 elementary cellular automaton to generate reasonably random bits.
+    /// </summary>
+    public class Rule30Random : BitGenerator {
         // System.Random: 71.2 ms
         // ours: 1461.5 ms :(
 
@@ -14,10 +17,8 @@ namespace DitoDisco.Randoom {
         readonly int bufferWidth;
         readonly int stateLength;
 
-
         bool[] currentBuffer;
         bool[] nextBuffer;
-
 
         readonly int bitSpacing;
         readonly int stateBitCapacity;
@@ -122,7 +123,7 @@ namespace DitoDisco.Randoom {
         }
 
         /// <summary>
-        /// Like <see cref="ExportCompactState(Span{byte})"/> but creates an array too.
+        /// Like <see cref="ExportCompactState(Span{byte})"/> but creates a new array instead of using an existing span.
         /// </summary>
         public bool[] ExportState() {
             bool[] array = new bool[stateLength];
@@ -134,7 +135,7 @@ namespace DitoDisco.Randoom {
         /// Sets the full RNG state to the provided one.
         /// </summary>
         /// <param name="state">The state to import. Its length must be exactly <see cref="StateLength"/>.</param>
-        public void ImportState(Span<bool> state) {
+        public void ImportState(ReadOnlySpan<bool> state) {
             if(state.Length != stateLength) throw new ArgumentException(nameof(state), $"The provided state's length must be exactly {nameof(StateLength)}.");
 
             state.CopyTo(GetStateSpan());
@@ -165,7 +166,7 @@ namespace DitoDisco.Randoom {
         }
 
         /// <summary>
-        /// Like <see cref="ExportCompactState(Span{byte})"/> but creates an array too.
+        /// Like <see cref="ExportCompactState(Span{byte})"/> but creates a new array instead of using an existing span.
         /// </summary>
         public byte[] ExportCompactState() {
             byte[] array = new byte[CompactStateLength];
@@ -177,7 +178,7 @@ namespace DitoDisco.Randoom {
         /// Sets the state using an array of uints made by <see cref="ExportCompactState(Span{byte})"/>.
         /// </summary>
         /// <param name="state">The compact state to import. Its length must be exactly <see cref="CompactStateLength"/>.</param>
-        public void ImportCompactState(Span<byte> state) {
+        public void ImportCompactState(ReadOnlySpan<byte> state) {
             if(state.Length != CompactStateLength) throw new ArgumentException(nameof(state), $"The destination span's length must be at least {nameof(CompactStateLength)}.");
 
             int stateI = 0;
@@ -205,10 +206,7 @@ namespace DitoDisco.Randoom {
         }
 
 
-        /// <summary>
-        /// Returns true or false (pseudo)randomly.
-        /// </summary>
-        public bool NextBit() {
+        public override bool NextBit() {
             bool bit = currentBuffer[nextStateBitIndex * bitSpacing];
 
             nextStateBitIndex++;
@@ -222,158 +220,6 @@ namespace DitoDisco.Randoom {
         }
 
 
-        // Overrides of System.Random
-
-        /// <summary>
-        /// Returns a pseudorandom double-precision number that is at least 0 and less than 1.
-        /// </summary>
-        public override double NextDouble() => NextUInt64(ulong.MaxValue) / (float)ulong.MaxValue;
-
-
-        /// <summary>
-        /// Returns a pseudorandom 64-bit unsigned integer with the first <paramref name="bitCount"/> bits randomized.
-        /// </summary>
-        public ulong NextUInt64WithBits(int bitCount) {
-            if(bitCount < 0 || bitCount > sizeof(ulong) * 8) throw new ArgumentOutOfRangeException(nameof(bitCount));
-
-            ulong num = 0;
-            for(int i = 0; i < bitCount; i++) {
-                if(NextBit()) num |= 1UL << i;
-            }
-
-            return num;
-        }
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int32"/> between 0 and <see cref="Int32.MaxValue"/>, inclusive.
-        /// </summary>
-        public override int Next() => Next(int.MaxValue);
-
-        /// <summary>
-        /// Returns a pseudorandom integer that is at least 0 and less than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public override int Next(int maxValue) {
-            return (int)NextUInt64((ulong)maxValue);
-        }
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int32"/> that is at least <paramref name="minValue"/> but less than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="minValue">Inclusive lower bound of the value.</param>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public override int Next(int minValue, int maxValue) {
-            if(maxValue < minValue) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must not be smaller than the minimum value.");
-            if(maxValue == minValue) return minValue;
-
-            return minValue + Next(maxValue - minValue);
-        }
-
-
-        /// <summary>
-        /// Fills the provided span with pseudorandom values.
-        /// </summary>
-        public override void NextBytes(Span<byte> buffer) {
-            for(int i = 0; i < buffer.Length; i++) {
-                buffer[i] = NextByte();
-            }
-        }
-
-
-        // Other random generation methods that should probably go into a base class.
-
-        /// <summary>
-        /// Returns a pseudorandom byte.
-        /// </summary>
-        public byte NextByte() {
-            return (byte)(
-                (NextBit() ? (1 << 0) : 0) |
-                (NextBit() ? (1 << 1) : 0) |
-                (NextBit() ? (1 << 2) : 0) |
-                (NextBit() ? (1 << 3) : 0) |
-                (NextBit() ? (1 << 4) : 0) |
-                (NextBit() ? (1 << 5) : 0) |
-                (NextBit() ? (1 << 6) : 0) |
-                (NextBit() ? (1 << 7) : 0)
-            );
-        }
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="UInt64"/> that is at least <paramref name="minValue"/> but less than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="minValue">Inclusive lower bound of the value.</param>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public ulong NextUInt64(ulong minValue, ulong maxValue) {
-            if(maxValue < minValue) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must not be smaller than the minimum value.");
-            if(maxValue == minValue) return minValue;
-
-            return minValue + NextUInt64(maxValue - minValue);
-        }
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int64"/> between 0 and <see cref="Int64.MaxValue"/>, inclusive.
-        /// </summary>
-        public long NextInt64() => (long)NextUInt64WithBits(sizeof(ulong) * 8 - 1);
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int64"/> that is at least 0 and smaller than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public long NextInt64(long maxValue) => (long)NextUInt64((ulong)maxValue);
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="Int64"/> that is at least <paramref name="minValue"/> but less than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="minValue">Inclusive lower bound of the value.</param>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public long NextInt64(long minValue, long maxValue) {
-            if(maxValue < minValue) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must not be smaller than the minimum value.");
-            if(maxValue == minValue) return minValue;
-
-            return minValue + NextInt64(maxValue - minValue);
-        }
-
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="UInt64"/> between 0 and <see cref="UInt64.MaxValue"/>, inclusive. (so basically, any value)
-        /// </summary>
-        public ulong NextUInt64() => NextUInt64WithBits(sizeof(ulong) * 8);
-
-        /// <summary>
-        /// Returns a pseudorandom <see cref="UInt64"/> that is at least 0 and smaller than <paramref name="maxValue"/>.
-        /// </summary>
-        /// <param name="maxValue">Exclusive upper bound of the value.</param>
-        public ulong NextUInt64(ulong maxValue) {
-            if(maxValue < 0) throw new ArgumentOutOfRangeException(nameof(maxValue), "Maximum value must be at least 0.");
-            if(maxValue == 0) return 0;
-
-            //int bitCount = Math.ILogB(maxValue) + 1; // This is not in .NET Standard 2.1
-            int bitCount = 0;
-            ulong maxValueCopy = maxValue;
-
-            while(maxValueCopy > 0) {
-                maxValueCopy >>= 1;
-                bitCount++;
-            }
-
-            int safetyCounter = 8192;
-            while(safetyCounter-- > 0) {
-                ulong possibleValue = NextUInt64WithBits(bitCount);
-
-                if(possibleValue < maxValue) return possibleValue;
-            }
-
-#if DEBUG
-            throw new Exception("Couldn't make a random number even after very many attempts.");
-#else
-            // Give up and just return the value in the center
-            return maxValue / 2;
-#endif
-        }
 
     }
 
