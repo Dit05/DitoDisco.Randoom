@@ -31,7 +31,7 @@ namespace DitoDisco.Randoom {
         public int StateLength => stateLength;
 
         /// <summary>
-        /// The amount of bytes used by <see cref="ExportCompactState(Span{byte})"/> and <see cref="ImportCompactState(Span{byte})"/>.
+        /// The amount of bytes used by <see cref="ExportCompactState(Span{byte})"/> and <see cref="ImportCompactState(ReadOnlySpan{byte})"/>.
         /// </summary>
         public int CompactStateLength => CeilingIntDivide(stateLength, 8);
 
