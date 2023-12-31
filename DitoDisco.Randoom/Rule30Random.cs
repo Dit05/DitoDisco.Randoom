@@ -4,44 +4,68 @@ using System;
 namespace DitoDisco.Randoom {
 
     /// <summary>
-    /// Uses the Rule 30 elementary cellular automaton to generate reasonably random bits.
+    /// Uses the Rule 30 elementary cellular automaton to generate reasonably random bits. The only reason you might want to use this over <see cref="System.Random"/> is to generate identical sequences cross-platform.
     /// </summary>
     public class Rule30Random : BitGenerator {
-        // System.Random: 71.2 ms
-        // ours: 1461.5 ms :(
+
+        /// <summary>
+        /// Opaque object representing the state of a <see cref="Rule30Random"/> instance.
+        /// </summary>
+        public class State {
+            internal bool[] bits;
+            internal int nextBitIndex;
+
+            internal State(bool[] bits, int nextBitIndex) {
+                this.bits = bits;
+                this.nextBitIndex = nextBitIndex;
+            }
+        }
+
+        /// <summary>
+        /// Small, opaque object representing the state of a <see cref="Rule30Random"/> instance.
+        /// </summary>
+        public class CompactState {
+            internal byte[] bytes;
+            internal int nextBitIndex;
+
+            internal CompactState(byte[] bytes, int nextBitIndex) {
+                this.bytes = bytes;
+                this.nextBitIndex = nextBitIndex;
+            }
+        }
+
+
 
         const int DEFAULT_BIT_SPACING = 8;
         const int DEFAULT_SIZE = 255;
 
+        //
 
         readonly int bufferWidth;
         readonly int stateLength;
 
+        /// <summary>Stride of <see cref="nextBitIndex"/>.</summary>
+        readonly int bitSpacing;
+        /// <summary>Maximum value of <see cref="nextBitIndex"/>. When it exceeds this, the next state will be computed and the next bit index is reset to 0.</summary>
+        readonly int maxBitIndex;
+
+        int CompactStateByteCount => Math.DivRem(stateLength, 8, out int remainder) + (remainder == 0 ? 0 : 1);
+
+
+        /// <summary>Index into <see cref="currentBuffer"/>. This is what the next bit will be.</summary>
+        int nextBitIndex = 0;
+
         bool[] currentBuffer;
         bool[] nextBuffer;
 
-        readonly int bitSpacing;
-        readonly int stateBitCapacity;
-        int nextStateBitIndex = 0;
-
-
-        /// <summary>
-        /// The length of one state, in bits.
-        /// </summary>
-        public int StateLength => stateLength;
-
-        /// <summary>
-        /// The amount of bytes used by <see cref="ExportCompactState(Span{byte})"/> and <see cref="ImportCompactState(ReadOnlySpan{byte})"/>.
-        /// </summary>
-        public int CompactStateLength => CeilingIntDivide(stateLength, 8);
 
 
         /// <summary>
         /// Initializes a new Rule 30 pseudorandom number generator, with a state width of <paramref name="size"/> bits, and seeds it using <paramref name="seed"/>.
         /// </summary>
-        /// <param name="seed">Completely determines the sequence of randomness that will be generated. A seed of 0 results in 1 being used instead, since an empty state would just keep being empty and not generate anything.</param>
-        /// <param name="size">Size of one state. This determines the value of <see cref="StateLength"/>. Must be positive. Using an even number is not recommended, because the cellular automaton is stable if the state is 010101... repeating.</param>
-        /// <param name="bitSpacing">Interval of bits picked out of the cellular automaton state. Higher values make subsequent pseudorandom values less correlated, but also require more computation to advance the state.</param>
+        /// <param name="seed">Completely determines the sequence of randomness that will be generated. A seed of 0 results in "<see cref="UInt64.MaxValue"/> + 1" being used instead, since an empty state would just keep being empty and not generate anything.</param>
+        /// <param name="size">Size of one state. Must be positive. Using an even number is not recommended, because the cellular automaton is stable if the state is 010101... repeating.</param>
+        /// <param name="bitSpacing">Stride of bits picked out of the cellular automaton state. Higher values make subsequent pseudorandom values less correlated, but also require advancing the state more often.</param>
         public Rule30Random(ulong seed, int size = DEFAULT_SIZE, int bitSpacing = DEFAULT_BIT_SPACING) {
             if(size <= 0) throw new ArgumentOutOfRangeException(nameof(size), "Size must be positive.");
             if(bitSpacing <= 0) throw new ArgumentOutOfRangeException(nameof(bitSpacing), "Bit spacing must be positive.");
@@ -51,21 +75,12 @@ namespace DitoDisco.Randoom {
 
             this.bitSpacing = bitSpacing;
 
-            stateBitCapacity = CeilingIntDivide(stateLength, bitSpacing);
+            maxBitIndex = (stateLength / bitSpacing) * bitSpacing;
 
-            currentBuffer = new bool[bufferWidth]; // Genuis: pad the buffers by 2 to avoid boundary checks
+            currentBuffer = new bool[bufferWidth]; // Genuis: pad the buffers by 2 to avoid boundary checks in the advance loop
             nextBuffer = new bool[bufferWidth];
 
-            // Initialize the first state by copying the bits of the seed
-            if(seed == 0) seed++;
-
-            int count = Math.Min(stateLength, sizeof(ulong) * 8);
-            for(int i = 1; i < count + 1; i++) {
-                currentBuffer[i] = (seed & (1u << i)) != 0;
-            }
-
-            // Let the seed propagate
-            for(int i = 0; i < stateLength * 2; i++) AdvanceState();
+            Reseed(seed);
         }
 
         /// <summary>
@@ -75,18 +90,24 @@ namespace DitoDisco.Randoom {
 
 
 
-        // Helpers
+        public override bool NextBit() {
+            bool bit = currentBuffer[1 + nextBitIndex];
 
-        private static int CeilingIntDivide(int dividend, int divisor) {
-            int result = Math.DivRem(dividend, divisor, out int remainder);
-            return (remainder == 0) ? result : result + 1;
+            nextBitIndex += bitSpacing;
+
+            if(nextBitIndex > maxBitIndex) {
+                nextBitIndex = 0;
+                AdvanceState();
+            }
+
+            return bit;
         }
 
 
-        private Span<bool> GetStateSpan() => currentBuffer.AsSpan().Slice(1, stateLength);
-
 
         // Internal state manipulation
+
+        private Span<bool> GetStateSpan() => currentBuffer.AsSpan().Slice(1, stateLength);
 
         private void SwapBuffers() {
             (currentBuffer, nextBuffer) = (nextBuffer, currentBuffer);
@@ -99,101 +120,122 @@ namespace DitoDisco.Randoom {
             currentBuffer[0] = currentBuffer[bufferWidth - 2];
             currentBuffer[bufferWidth - 1] = currentBuffer[1];
 
-            for(int i = 1; i < bufferWidth - 1; i++) {
-                bool left  = currentBuffer[i - 1];
-                bool mid   = currentBuffer[i    ];
-                bool right = currentBuffer[i + 1];
+            bool left = currentBuffer[0];
+            bool mid = currentBuffer[1];
+            for(int i = 2; i < bufferWidth; i++) {
+                bool right = currentBuffer[i];
                 nextBuffer[i] = left ^ (mid || right);
+                (left, mid) = (mid, right); // <--
             }
 
             SwapBuffers();
         }
 
 
+        private void InternalWriteSeed(ulong seed) {
+            if(seed == 0) {
+                // Special case: empty seed
+                int i = sizeof(ulong) * 8 + 1;
+                currentBuffer[1 + (i % stateLength)] = true;
+                return;
+            }
+
+            // Copy the bits of the seed
+            for(int i = 0; i < sizeof(ulong) * 8; i++) {
+                currentBuffer[1 + (i % stateLength)] = (seed & (1u << i)) != 0;
+            }
+        }
+
+
         // State in/out
 
         /// <summary>
-        /// Copies the current state into the provided span.
+        /// Seeds the state using a number. Seeding with the same value will result in subsequent bits being the same.
         /// </summary>
-        /// <param name="state">Destination for the state. Its length must be at exactly <see cref="StateLength"/>.</param>
-        public void ExportState(Span<bool> state) {
-            if(state.Length != StateLength) throw new ArgumentException(nameof(state), $"The destination span's length must be exactly {nameof(StateLength)}.");
+        /// <param name="propagate">Whether to do some state advancements after seeding to increase chaos before actually producing bits. This is heavily recommended.</param>
+        public void Reseed(ulong seed, bool propagate = true) {
+            Array.Fill(currentBuffer, false);
+            InternalWriteSeed(seed);
 
-            GetStateSpan().CopyTo(state);
+            // Let the seed propagate
+            if(propagate) for(int i = 0; i < stateLength * 2; i++) AdvanceState();
         }
 
         /// <summary>
-        /// Like <see cref="ExportCompactState(Span{byte})"/> but creates a new array instead of using an existing span.
+        /// Creates an opaque object that represents the internal state of the generator. Can be imported later to get the same results from <see cref="NextBit"/>.
         /// </summary>
-        public bool[] ExportState() {
-            bool[] array = new bool[stateLength];
-            ExportState(array.AsSpan());
-            return array;
+        public State ExportState() {
+            bool[] stateCopy = new bool[stateLength];
+            GetStateSpan().CopyTo(stateCopy);
+
+            return new State(stateCopy, nextBitIndex);
         }
 
         /// <summary>
-        /// Sets the full RNG state to the provided one.
+        /// Imports a state exported by <see cref="ExportState"/>. The exporting instance must have the same state length (determined at construction) as this one.
         /// </summary>
-        /// <param name="state">The state to import. Its length must be exactly <see cref="StateLength"/>.</param>
-        public void ImportState(ReadOnlySpan<bool> state) {
-            if(state.Length != stateLength) throw new ArgumentException(nameof(state), $"The provided state's length must be exactly {nameof(StateLength)}.");
+        public void ImportState(State state) {
+            if(state.bits.Length != stateLength) throw new ArgumentOutOfRangeException(nameof(state), "This state contains a different amount of bits than expected. It might have been generated by an instance with a different state length, and thus cannot be used with this instance.");
+            if(state.nextBitIndex > maxBitIndex) throw new ArgumentOutOfRangeException(nameof(state), "This state's next bit index is greater than what's allowed in this instance. It might have been generated by an instance with a larger state length, and thus cannot be used with this instance.");
 
-            state.CopyTo(GetStateSpan());
+            state.bits.CopyTo(GetStateSpan());
+            nextBitIndex = state.nextBitIndex;
         }
 
 
         /// <summary>
-        /// Copies the current state into the bits of a span of bytes, filling from least to most significant bit.
+        /// Creates an opaque object that memory-efficiently represents the internal state of the generator, at the expense of taking a bit longer to create. Can be imported later to get the same results from <see cref="NextBit"/>.
         /// </summary>
-        /// <param name="dest">Destination for the compact state. Its length must be at exactly <see cref="CompactStateLength"/>.</param>
-        public void ExportCompactState(Span<byte> dest) {
-            if(dest.Length != CompactStateLength) throw new ArgumentException(nameof(dest), $"The destination span's length must be exactly {nameof(CompactStateLength)}.");
+        public CompactState ExportCompactState() {
+            byte[] bytes = new byte[CompactStateByteCount];
 
-            int stateI = 0;
-            int stateBit = 0;
-            for(int i = 1; i < bufferWidth - 1; i++) {
-                bool cellOn = currentBuffer[i];
+            Span<bool> stateSpan = GetStateSpan();
 
-                if(cellOn) dest[stateI] |= (byte)(1 << stateBit);
-
-                stateBit++;
-                if(stateBit >= 8) {
-                    stateBit = 0;
-                    stateI++;
-                    dest[stateI] = 0;
-                }
+            int n = (stateLength / 8) * 8;
+            int j = 0;
+            for(int i = 0; i < n; i += 8) {
+                bytes[j++] = (byte)(
+                    (stateSpan[i  ] ? 1 : 0) << 0 |
+                    (stateSpan[i+1] ? 1 : 0) << 1 |
+                    (stateSpan[i+2] ? 1 : 0) << 2 |
+                    (stateSpan[i+3] ? 1 : 0) << 3 |
+                    (stateSpan[i+4] ? 1 : 0) << 4 |
+                    (stateSpan[i+5] ? 1 : 0) << 5 |
+                    (stateSpan[i+6] ? 1 : 0) << 6 |
+                    (stateSpan[i+7] ? 1 : 0) << 7
+                );
             }
-        }
 
-        /// <summary>
-        /// Like <see cref="ExportCompactState(Span{byte})"/> but creates a new array instead of using an existing span.
-        /// </summary>
-        public byte[] ExportCompactState() {
-            byte[] array = new byte[CompactStateLength];
-            ExportCompactState(array);
-            return array;
-        }
-
-        /// <summary>
-        /// Sets the state using an array of uints made by <see cref="ExportCompactState(Span{byte})"/>.
-        /// </summary>
-        /// <param name="state">The compact state to import. Its length must be exactly <see cref="CompactStateLength"/>.</param>
-        public void ImportCompactState(ReadOnlySpan<byte> state) {
-            if(state.Length != CompactStateLength) throw new ArgumentException(nameof(state), $"The destination span's length must be at least {nameof(CompactStateLength)}.");
-
-            int stateI = 0;
-            int stateBit = 0;
-            for(int i = 1; i < bufferWidth - 1; i++) {
-                bool cellOn = (state[stateI] & (byte)(1 << stateBit)) != 0;
-
-                currentBuffer[i] = cellOn;
-
-                stateBit++;
-                if(stateBit > 8) {
-                    stateBit = 0;
-                    stateI++;
-                }
+            byte last = 0;
+            for(int i = n; i < stateLength; i++) {
+                last |= (byte)((stateSpan[i] ? 1 : 0) << (i - n));
             }
+
+            if(last != 0) bytes[^1] = last;
+
+            return new CompactState(bytes, nextBitIndex);
+        }
+
+
+        /// <summary>
+        /// Imports a compact state exported by <see cref="ExportCompactState"/>. The exporting instance must have the same state length (determined at construction) as this one.
+        /// </summary>
+        public void ImportCompactState(CompactState state) {
+            if(state.bytes.Length != CompactStateByteCount) throw new ArgumentOutOfRangeException(nameof(state), "This compact state contains a different amount of bits than expected. It might have been generated by an instance with a different state length, and thus cannot be used with this instance.");
+            if(state.nextBitIndex > maxBitIndex) throw new ArgumentOutOfRangeException(nameof(state), "This compact state's next bit index is greater than what's allowed in this instance. It might have been generated by an instance with a larger state length, and thus cannot be used with this instance.");
+
+            Span<bool> stateSpan = GetStateSpan();
+
+            int bit = 0;
+            int byteIndex = 0;
+            for(int i = 0; i < stateSpan.Length; i++) {
+                stateSpan[i] = ((state.bytes[byteIndex] >> bit) & 0b1) != 0;
+
+                bit = (bit + 1) % 8;
+                if(bit == 0) byteIndex++; // Just rolled over, increment
+            }
+
+            nextBitIndex = state.nextBitIndex;
         }
 
 
@@ -201,25 +243,9 @@ namespace DitoDisco.Randoom {
         /// Manually advances the cellular automaton to the next state. Calling this is completely unneccessary.
         /// </summary>
         public void ManuallyAdvanceState() {
-            nextStateBitIndex = 0;
+            nextBitIndex = 0;
             AdvanceState();
         }
-
-
-        public override bool NextBit() {
-            bool bit = currentBuffer[nextStateBitIndex * bitSpacing];
-
-            nextStateBitIndex++;
-
-            if(nextStateBitIndex >= stateBitCapacity) {
-                nextStateBitIndex = 0;
-                AdvanceState();
-            }
-
-            return bit;
-        }
-
-
 
     }
 
